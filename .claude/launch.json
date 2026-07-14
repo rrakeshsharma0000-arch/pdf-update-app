@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "PDF Update App",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/rakesh.sharma/Desktop/PDF Update App/app.py"],
+      "port": 5000,
+      "autoPort": false
+    }
+  ]
+}

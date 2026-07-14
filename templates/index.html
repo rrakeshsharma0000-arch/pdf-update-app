@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Update App</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>PDF Update App</h1>
+      <p class="subtitle">Upload a PDF, find and replace text, then download the updated file.</p>
+    </header>
+
+    <main>
+      <!-- Step 1: Upload -->
+      <div class="step-card" id="stepUpload">
+        <div class="step-label">Step 1 — Upload PDF</div>
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="pdfInput" accept=".pdf" hidden />
+          <div class="drop-icon">📄</div>
+          <p class="drop-label">Drag &amp; drop your PDF here</p>
+          <p class="drop-sub">or <button type="button" id="browseBtn" class="link-btn">browse files</button></p>
+          <div id="fileInfo" class="file-info hidden"></div>
+        </div>
+        <button id="uploadBtn" class="btn-primary mt" disabled>
+          <span id="uploadBtnText">Upload &amp; Preview</span>
+          <span id="uploadSpinner" class="spinner hidden"></span>
+        </button>
+      </div>
+
+      <!-- PDF Preview -->
+      <div class="step-card hidden" id="previewCard">
+        <div class="preview-card-header">
+          <div>
+            <div class="step-label" style="margin-bottom:4px">Document Preview</div>
+            <span id="previewFilename" class="preview-filename"></span>
+          </div>
+          <button id="changeFileBtn" class="link-btn small">Change file</button>
+        </div>
+        <iframe id="previewFrame" class="pdf-preview-frame" title="PDF Preview"></iframe>
+      </div>
+
+      <!-- Font Warning -->
+      <div class="step-card hidden" id="fontWarningCard">
+        <div class="font-warning-header">
+          <span class="font-warning-icon" id="fontWarningIcon">⚠️</span>
+          <div>
+            <div class="step-label" style="margin-bottom:2px" id="fontWarningTitle">Custom Fonts Detected</div>
+            <p class="font-warning-desc" id="fontWarningDesc"></p>
+          </div>
+        </div>
+        <div id="fontList"></div>
+      </div>
+
+      <!-- Step 2: Replace -->
+      <div class="step-card hidden" id="stepReplace">
+        <div class="step-label">Step 2 — Find &amp; Replace</div>
+
+        <div id="pairsList"></div>
+
+        <button type="button" id="addPairBtn" class="btn-ghost mt-sm">+ Add another replacement</button>
+
+        <div class="options-row">
+          <label class="toggle-label">
+            <input type="checkbox" id="caseSensitive" />
+            Case-sensitive matching
+          </label>
+        </div>
+
+        <button id="applyBtn" class="btn-primary mt">
+          <span id="applyBtnText">Apply &amp; Generate PDF</span>
+          <span id="applySpinner" class="spinner hidden"></span>
+        </button>
+      </div>
+
+      <!-- Result -->
+      <div id="resultBox" class="step-card result-box hidden">
+        <div class="result-icon">✅</div>
+        <p class="result-msg" id="resultMsg"></p>
+        <a id="downloadLink" href="#" class="btn-download">Download Updated PDF</a>
+        <button id="startOverBtn" class="link-btn block mt-sm">Start over</button>
+      </div>
+
+      <!-- Error -->
+      <div id="errorBox" class="error-box hidden">
+        <span class="error-icon">⚠️</span>
+        <span id="errorMsg"></span>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
