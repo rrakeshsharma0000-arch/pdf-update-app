@@ -205,6 +205,73 @@ function setApplyLoading(on) {
   applySpinner.classList.toggle('hidden', !on);
 }
 
+// --- Font download link lookup ---
+function fontDownloadLink(fontName) {
+  const name = fontName.toLowerCase().replace(/[-_\s]+/g, '');
+
+  // Known Google Fonts mappings (name fragment → Google Fonts family name)
+  const googleFonts = [
+    ['roboto',        'Roboto'],
+    ['opensans',      'Open+Sans'],
+    ['lato',          'Lato'],
+    ['montserrat',    'Montserrat'],
+    ['sourcesans',    'Source+Sans+3'],
+    ['ptsans',        'PT+Sans'],
+    ['ptserif',       'PT+Serif'],
+    ['raleway',       'Raleway'],
+    ['nunito',        'Nunito'],
+    ['merriweather',  'Merriweather'],
+    ['playfair',      'Playfair+Display'],
+    ['oswald',        'Oswald'],
+    ['ubuntu',        'Ubuntu'],
+    ['noto',          'Noto+Sans'],
+    ['inter',         'Inter'],
+    ['poppins',       'Poppins'],
+    ['mulish',        'Mulish'],
+    ['worksans',      'Work+Sans'],
+    ['josefin',       'Josefin+Sans'],
+    ['cabin',         'Cabin'],
+    ['quicksand',     'Quicksand'],
+    ['dmsans',        'DM+Sans'],
+    ['dmserif',       'DM+Serif+Display'],
+    ['barlow',        'Barlow'],
+    ['arimo',         'Arimo'],
+    ['tinos',         'Tinos'],
+    ['cousine',       'Cousine'],
+    ['caladea',       'Caladea'],
+    ['carlito',       'Carlito'],
+    ['lora',          'Lora'],
+    ['crimsontext',   'Crimson+Text'],
+    ['librebaskerville', 'Libre+Baskerville'],
+    ['librефranklin',  'Libre+Franklin'],
+    ['ebgaramond',    'EB+Garamond'],
+    ['cormorant',     'Cormorant+Garamond'],
+    ['spectral',      'Spectral'],
+    ['inknutantiqua', 'Inknut+Antiqua'],
+    ['figtree',       'Figtree'],
+    ['geist',         'Geist'],
+    ['outfit',        'Outfit'],
+    ['plusjakarta',   'Plus+Jakarta+Sans'],
+    ['manrope',       'Manrope'],
+  ];
+
+  for (const [fragment, family] of googleFonts) {
+    if (name.includes(fragment)) {
+      return {
+        url: `https://fonts.google.com/specimen/${family.replace(/\+/g, '+')}`,
+        source: 'Google Fonts',
+      };
+    }
+  }
+
+  // Fall back to a Google Fonts search for any unrecognised font
+  const searchQuery = encodeURIComponent(fontName.replace(/[-,]/g, ' ').trim());
+  return {
+    url: `https://fonts.google.com/?query=${searchQuery}`,
+    source: 'Google Fonts',
+  };
+}
+
 // --- Navigation ---
 function renderFontWarning(customFonts, autoExtracted) {
   const icon  = document.getElementById('fontWarningIcon');
@@ -285,10 +352,26 @@ function renderFontWarning(customFonts, autoExtracted) {
       }
     });
 
-    row.appendChild(nameEl);
-    row.appendChild(badge);
-    row.appendChild(uploadBtn);
-    row.appendChild(fileInput);
+    const downloadLink = fontDownloadLink(f.name);
+    if (downloadLink) {
+      const hint = document.createElement('a');
+      hint.href = downloadLink.url;
+      hint.target = '_blank';
+      hint.rel = 'noopener noreferrer';
+      hint.className = 'font-download-hint';
+      hint.textContent = `⬇ Download from ${downloadLink.source}`;
+      hint.title = `Search for "${f.name}" on ${downloadLink.source}`;
+      row.appendChild(nameEl);
+      row.appendChild(badge);
+      row.appendChild(hint);
+      row.appendChild(uploadBtn);
+      row.appendChild(fileInput);
+    } else {
+      row.appendChild(nameEl);
+      row.appendChild(badge);
+      row.appendChild(uploadBtn);
+      row.appendChild(fileInput);
+    }
     fontList.appendChild(row);
   });
 
