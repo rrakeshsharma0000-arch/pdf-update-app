@@ -264,11 +264,11 @@ function fontDownloadLink(fontName) {
     }
   }
 
-  // Fall back to a Google Fonts search for any unrecognised font
+  // Fall back to a general search across font sites
   const searchQuery = encodeURIComponent(fontName.replace(/[-,]/g, ' ').trim());
   return {
-    url: `https://fonts.google.com/?query=${searchQuery}`,
-    source: 'Google Fonts',
+    url: `https://www.google.com/search?q=${searchQuery}+font+download+ttf+site:fontsquirrel.com+OR+site:dafont.com+OR+site:fonts.google.com+OR+site:1001fonts.com`,
+    source: 'font sites',
   };
 }
 
