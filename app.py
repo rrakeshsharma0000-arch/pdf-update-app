@@ -209,15 +209,15 @@ def apply_replacements_inplace(pdf_bytes: bytes, replacements: list, case_sensit
             inserts = []
             for rect, span in zip(hits, styles):
                 if span is None:
-                    fontname = 'helv'
-                    fontsize = 11
-                    color    = (0, 0, 0)
+                    fontname  = 'helv'
+                    fontsize  = 11
+                    color     = (0, 0, 0)
+                    font_file = None
                     baseline_y = rect.y1 - rect.height * 0.15
                 else:
-                    raw_name = span['font']
-                    color    = _color_to_rgb(span['color'])
-                    fontsize = span['size']
-                    # rect.y1 is bottom of bounding box; baseline sits just above it
+                    raw_name  = span['font']
+                    color     = _color_to_rgb(span['color'])
+                    fontsize  = span['size']
                     baseline_y = rect.y1 - (rect.height * 0.15)
 
                     font_file = None
@@ -225,22 +225,23 @@ def apply_replacements_inplace(pdf_bytes: bytes, replacements: list, case_sensit
                         font_file = _font_file_path(_normalize_font_name(raw_name))
 
                     if font_file:
-                        clean_key = re.sub(r'[^a-zA-Z0-9]', '', _normalize_font_name(raw_name))[:32] or 'F1'
-                        page.insert_font(fontname=clean_key, fontfile=font_file)
-                        fontname = clean_key
+                        fontname = re.sub(r'[^a-zA-Z0-9]', '', _normalize_font_name(raw_name))[:32] or 'F1'
                     else:
                         fontname = _builtin_font(span['flags'], raw_name)
 
                 # White out the original text
                 page.add_redact_annot(rect, fill=(1, 1, 1))
-                inserts.append((fitz.Point(rect.x0, baseline_y), fontname, fontsize, color))
+                inserts.append((fitz.Point(rect.x0, baseline_y), fontname, fontsize, color, font_file))
                 count += 1
 
             # Apply redactions first so the white fill is in the stream,
             # then insert text on top — this preserves the exact font size.
             page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
 
-            for origin, fontname, fontsize, color in inserts:
+            for origin, fontname, fontsize, color, font_file in inserts:
+                # Re-register custom font after apply_redactions (page resources reset)
+                if font_file:
+                    page.insert_font(fontname=fontname, fontfile=font_file)
                 page.insert_text(
                     origin,
                     replace_text,
