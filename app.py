@@ -193,6 +193,59 @@ def extract_preview_text(pdf_bytes: bytes) -> str:
     return "\n\n".join(parts)
 
 
+def _resolve_font(raw_name, page):
+    """Return (fontname, font_file) for a span's raw font name."""
+    font_file = None
+    if not _is_subset_font(raw_name):
+        font_file = _font_file_path(_normalize_font_name(raw_name))
+    if font_file:
+        fontname = re.sub(r'[^a-zA-Z0-9]', '', _normalize_font_name(raw_name))[:32] or 'F1'
+    else:
+        fontname = _builtin_font(0, raw_name)
+    return fontname, font_file
+
+
+def _text_width(text, fontname, fontsize, font_file=None):
+    """Return rendered width of text in points."""
+    try:
+        font = fitz.Font(fontfile=font_file) if font_file else fitz.Font(fontname)
+        return font.text_length(text, fontsize=fontsize)
+    except Exception:
+        return len(text) * fontsize * 0.5
+
+
+def _same_line_spans(page, after_x, y_center, tolerance=3):
+    """Return all spans on the same line (by y_center) that start at or after after_x."""
+    result = []
+    for block in page.get_text("dict")["blocks"]:
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", []):
+            for span in line.get("spans", []):
+                bbox = fitz.Rect(span["bbox"])
+                if abs((bbox.y0 + bbox.y1) / 2 - y_center) <= tolerance and bbox.x0 >= after_x - 1:
+                    result.append(span)
+    return result
+
+
+def _build_insert(span, x_override=None):
+    """Build an insert tuple from a span dict, optionally overriding x position."""
+    bbox = fitz.Rect(span["bbox"])
+    raw_name = span["font"]
+    color = _color_to_rgb(span["color"])
+    fontsize = span["size"]
+    baseline_y = bbox.y1 - bbox.height * 0.15
+    font_file = None
+    if not _is_subset_font(raw_name):
+        font_file = _font_file_path(_normalize_font_name(raw_name))
+    if font_file:
+        fontname = re.sub(r'[^a-zA-Z0-9]', '', _normalize_font_name(raw_name))[:32] or 'F1'
+    else:
+        fontname = _builtin_font(span["flags"], raw_name)
+    x = x_override if x_override is not None else bbox.x0
+    return (fitz.Point(x, baseline_y), span["text"], fontname, fontsize, color, font_file)
+
+
 def apply_replacements_inplace(pdf_bytes: bytes, replacements: list, case_sensitive: bool):
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     total_changes = 0
@@ -212,50 +265,57 @@ def apply_replacements_inplace(pdf_bytes: bytes, replacements: list, case_sensit
 
             styles = [_span_style_at(page, rect) for rect in hits]
 
-            # Resolve font info before redacting (span data is still valid)
-            inserts = []
+            # Collect everything to redact and re-insert in one pass
+            redact_rects = []   # rects to white out
+            inserts = []        # (origin, text, fontname, fontsize, color, font_file)
+
             for rect, span in zip(hits, styles):
                 if span is None:
-                    fontname  = 'helv'
-                    fontsize  = 11
-                    color     = (0, 0, 0)
-                    font_file = None
+                    fontname, font_file = 'helv', None
+                    fontsize = 11
+                    color = (0, 0, 0)
                     baseline_y = rect.y1 - rect.height * 0.15
+                    orig_width = rect.width
                 else:
-                    raw_name  = span['font']
-                    color     = _color_to_rgb(span['color'])
-                    fontsize  = span['size']
-                    baseline_y = rect.y1 - (rect.height * 0.15)
-
+                    raw_name = span['font']
+                    color = _color_to_rgb(span['color'])
+                    fontsize = span['size']
+                    baseline_y = rect.y1 - rect.height * 0.15
                     font_file = None
                     if not _is_subset_font(raw_name):
                         font_file = _font_file_path(_normalize_font_name(raw_name))
-
                     if font_file:
                         fontname = re.sub(r'[^a-zA-Z0-9]', '', _normalize_font_name(raw_name))[:32] or 'F1'
                     else:
                         fontname = _builtin_font(span['flags'], raw_name)
+                    orig_width = rect.width
 
-                # White out the original text
-                page.add_redact_annot(rect, fill=(1, 1, 1))
-                inserts.append((fitz.Point(rect.x0, baseline_y), fontname, fontsize, color, font_file))
+                new_width = _text_width(replace_text, fontname, fontsize, font_file)
+                delta_x = new_width - orig_width
+                y_center = (rect.y0 + rect.y1) / 2
+
+                redact_rects.append(rect)
+                inserts.append((fitz.Point(rect.x0, baseline_y), replace_text, fontname, fontsize, color, font_file))
                 count += 1
 
-            # Apply redactions first so the white fill is in the stream,
-            # then insert text on top — this preserves the exact font size.
+                # Shift same-line spans that follow this replacement
+                if abs(delta_x) > 0.5:
+                    for after_span in _same_line_spans(page, rect.x1, y_center):
+                        sbbox = fitz.Rect(after_span["bbox"])
+                        new_x = sbbox.x0 + delta_x
+                        redact_rects.append(sbbox)
+                        inserts.append(_build_insert(after_span, x_override=new_x))
+
+            # White out all rects in one batch
+            for r in redact_rects:
+                page.add_redact_annot(r, fill=(1, 1, 1))
             page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
 
-            for origin, fontname, fontsize, color, font_file in inserts:
-                # Re-register custom font after apply_redactions (page resources reset)
+            # Re-insert all text after redactions
+            for origin, text, fontname, fontsize, color, font_file in inserts:
                 if font_file:
                     page.insert_font(fontname=fontname, fontfile=font_file)
-                page.insert_text(
-                    origin,
-                    replace_text,
-                    fontname=fontname,
-                    fontsize=fontsize,
-                    color=color,
-                )
+                page.insert_text(origin, text, fontname=fontname, fontsize=fontsize, color=color)
 
         results.append({'find': find_text, 'replace': replace_text, 'count': count})
         total_changes += count
