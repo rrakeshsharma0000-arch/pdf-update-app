@@ -212,12 +212,13 @@ def apply_replacements_inplace(pdf_bytes: bytes, replacements: list, case_sensit
                     fontname = 'helv'
                     fontsize = 11
                     color    = (0, 0, 0)
-                    baseline_y = rect.y1 - rect.height * 0.2
+                    baseline_y = rect.y1 - rect.height * 0.15
                 else:
                     raw_name = span['font']
                     color    = _color_to_rgb(span['color'])
                     fontsize = span['size']
-                    baseline_y = span['origin'][1]
+                    # rect.y1 is bottom of bounding box; baseline sits just above it
+                    baseline_y = rect.y1 - (rect.height * 0.15)
 
                     font_file = None
                     if not _is_subset_font(raw_name):
