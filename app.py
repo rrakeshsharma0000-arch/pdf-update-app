@@ -205,45 +205,48 @@ def apply_replacements_inplace(pdf_bytes: bytes, replacements: list, case_sensit
 
             styles = [_span_style_at(page, rect) for rect in hits]
 
-            # Add all redaction annotations first, with replacement text baked in.
-            # Using add_redact_annot's built-in `text` parameter is atomic:
-            # the clear + reinsert happen in a single content-stream operation,
-            # which prevents the white fill rect from painting over the new text.
+            # Resolve font info before redacting (span data is still valid)
+            inserts = []
             for rect, span in zip(hits, styles):
                 if span is None:
                     fontname = 'helv'
                     fontsize = 11
                     color    = (0, 0, 0)
+                    baseline_y = rect.y1 - rect.height * 0.2
                 else:
                     raw_name = span['font']
                     color    = _color_to_rgb(span['color'])
                     fontsize = span['size']
+                    baseline_y = span['origin'][1]
 
-                    # Only use an extracted font if it's a full (non-subset) font.
                     font_file = None
                     if not _is_subset_font(raw_name):
                         font_file = _font_file_path(_normalize_font_name(raw_name))
 
                     if font_file:
-                        # Temporarily register the font so PyMuPDF knows its name
                         clean_key = re.sub(r'[^a-zA-Z0-9]', '', _normalize_font_name(raw_name))[:32] or 'F1'
                         page.insert_font(fontname=clean_key, fontfile=font_file)
                         fontname = clean_key
                     else:
                         fontname = _builtin_font(span['flags'], raw_name)
 
-                page.add_redact_annot(
-                    rect,
-                    text=replace_text,
-                    fontname=fontname,
-                    fontsize=fontsize,
-                    fill=(1, 1, 1),        # white background matches page
-                    text_color=color,
-                    align=fitz.TEXT_ALIGN_LEFT,
-                )
+                # White out the original text
+                page.add_redact_annot(rect, fill=(1, 1, 1))
+                inserts.append((fitz.Point(rect.x0, baseline_y), fontname, fontsize, color))
                 count += 1
 
+            # Apply redactions first so the white fill is in the stream,
+            # then insert text on top — this preserves the exact font size.
             page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
+
+            for origin, fontname, fontsize, color in inserts:
+                page.insert_text(
+                    origin,
+                    replace_text,
+                    fontname=fontname,
+                    fontsize=fontsize,
+                    color=color,
+                )
 
         results.append({'find': find_text, 'replace': replace_text, 'count': count})
         total_changes += count
