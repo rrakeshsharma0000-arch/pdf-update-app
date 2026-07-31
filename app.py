@@ -76,14 +76,21 @@ def _color_to_rgb(color_int: int):
     return (r, g, b)
 
 def _span_style_at(page, rect: fitz.Rect):
+    best_span = None
+    best_area = 0.0
     for block in page.get_text("dict")["blocks"]:
         if block.get("type") != 0:
             continue
         for line in block.get("lines", []):
             for span in line.get("spans", []):
-                if fitz.Rect(span["bbox"]).intersects(rect):
-                    return span
-    return None
+                inter = fitz.Rect(span["bbox"]) & rect
+                if inter.is_empty:
+                    continue
+                area = inter.width * inter.height
+                if area > best_area:
+                    best_area = area
+                    best_span = span
+    return best_span
 
 def _search_all(page, text: str, case_sensitive: bool):
     hits = page.search_for(text)
